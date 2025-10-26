@@ -13,9 +13,12 @@ const router = express.Router()
 router.get('/', log, getStays)
 router.get('/:id', log, getStayById)
 router.post('/', log, requireAuth, addStay)
-router.put('/:id', requireAuth, updateStay)
-router.delete('/:id', requireAuth, removeStay)
-// router.delete('/:id', requireAuth, requireAdmin, removeStay)
+
+// Handle updates via POST to avoid PUT middleware issues
+router.post('/:id', log, requireAuth, updateStay)
+
+router.put('/:id', log, requireAuth, updateStay)
+router.delete('/:id', log, requireAuth, removeStay)
 
 router.post('/:id/review', requireAuth, addStayReview)
 router.delete('/:id/review/:reviewId', requireAuth, removeStayReview)

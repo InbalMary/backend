@@ -9,6 +9,7 @@ import { userRoutes } from './api/user/user.routes.js'
 import { reviewRoutes } from './api/review/review.routes.js'
 import { stayRoutes } from './api/stay/stay.routes.js'
 import { wishlistRoutes } from './api/wishlist/wishlist.routes.js'
+import { orderRoutes } from './api/order/order.routes.js'
 
 import { setupSocketAPI } from './services/socket.service.js'
 
@@ -42,6 +43,7 @@ app.use('/api/user', userRoutes)
 app.use('/api/review', reviewRoutes)
 app.use('/api/stay', stayRoutes)
 app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/order', orderRoutes)
 
 setupSocketAPI(server)
 

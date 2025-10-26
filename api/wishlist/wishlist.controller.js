@@ -58,19 +58,15 @@ export async function addWishlist(req, res) {
 
 export async function updateWishlist(req, res) {
     const { loggedinUser, body: wishlist } = req
-    const { _id: userId, isAdmin } = loggedinUser
-
-    // Authorization check
-    if (!isAdmin && wishlist.byUser?._id !== userId) {
-        return res.status(403).send({ err: 'Not your wishlist...' })
-    }
 
     try {
+        // Authorization is checked in service layer
         const updatedWishlist = await wishlistService.update(wishlist)
         res.json(updatedWishlist)
     } catch (err) {
         logger.error('Failed to update wishlist', err)
-        res.status(400).send({ err: 'Failed to update wishlist' })
+        const status = err.message?.includes('Not your wishlist') ? 403 : 400
+        res.status(status).send({ err: err.message || 'Failed to update wishlist' })
     }
 }
 
@@ -81,7 +77,8 @@ export async function removeWishlist(req, res) {
         res.send(removedId)
     } catch (err) {
         logger.error('Failed to remove wishlist', err)
-        res.status(400).send({ err: 'Failed to remove wishlist' })
+        const status = err.message?.includes('Not your wishlist') ? 403 : 400
+        res.status(status).send({ err: err.message || 'Failed to remove wishlist' })
     }
 }
 
@@ -98,7 +95,8 @@ export async function addStayToWishlist(req, res) {
         res.json(updatedWishlist)
     } catch (err) {
         logger.error('Failed to add stay to wishlist', err)
-        res.status(400).send({ err: 'Failed to add stay to wishlist' })
+        const status = err.message?.includes('Not your wishlist') ? 403 : 400
+        res.status(status).send({ err: err.message || 'Failed to add stay to wishlist' })
     }
 }
 
@@ -109,6 +107,7 @@ export async function removeStayFromWishlist(req, res) {
         res.json(updatedWishlist)
     } catch (err) {
         logger.error('Failed to remove stay from wishlist', err)
-        res.status(400).send({ err: 'Failed to remove stay from wishlist' })
+        const status = err.message?.includes('Not your wishlist') ? 403 : 400
+        res.status(status).send({ err: err.message || 'Failed to remove stay from wishlist' })
     }
 }

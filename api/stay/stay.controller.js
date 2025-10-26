@@ -34,23 +34,48 @@ export async function getStayById(req, res) {
 }
 
 export async function addStay(req, res) {
-    const { loggedinUser, body } = req
+    const { loggedinUser } = req
+    const {
+        name,
+        type,
+        summary = '',
+        price,
+        capacity,
+        guests,
+        imgUrls = [],
+        loc = { city: '', country: '', address: '' },
+        amenities = [],
+        availableFrom = null,
+        availableUntil = null
+    } = req.body
+
+    const stayCapacity = capacity || guests || 1
+
+    if (price === undefined || price === null) {
+        return res.status(400).send({ err: 'Price is required' })
+    }
 
     const stay = {
-        name: body.name,
-        type: body.type,
-        summary: body.summary,
-        price: body.price,
-        capacity: body.capacity,
-        imgUrls: body.imgUrls || [],
-        loc: body.loc,
-        amenities: body.amenities || [],
-        availableFrom: body.availableFrom,
-        availableUntil: body.availableUntil,
+        name: name || 'Untitled Stay',
+        type: type || 'House',
+        summary,
+        price,
+        capacity: stayCapacity,
+        imgUrls,
+        loc,
+        amenities,
+        availableFrom,
+        availableUntil,
+        host: {
+            _id: loggedinUser._id,
+            fullname: loggedinUser.fullname,
+            imgUrl: loggedinUser.imgUrl
+        },
+        reviews: [],
+        likedByUsers: []
     }
 
     try {
-        stay.host = loggedinUser
         const addedStay = await stayService.add(stay)
         res.json(addedStay)
     } catch (err) {
@@ -60,19 +85,80 @@ export async function addStay(req, res) {
 }
 
 export async function updateStay(req, res) {
-    const { loggedinUser, body: stay } = req
-    const { _id: userId, isAdmin } = loggedinUser
+    const { loggedinUser } = req
 
-    if (!isAdmin && stay.host?._id !== userId) {
-        res.status(403).send('Not your stay...')
-        return
+    // Debug logging
+    logger.info(`updateStay called - loggedinUser: ${JSON.stringify(loggedinUser)}`)
+    const {
+        _id,
+        name,
+        type,
+        summary = '',
+        price,
+        capacity,
+        guests,
+        bedrooms,
+        beds,
+        bathrooms,
+        roomType,
+        imgUrls = [],
+        loc = { city: '', country: '', address: '' },
+        amenities = [],
+        availableFrom = null,
+        availableUntil = null,
+        reviews = [],
+        likedByUsers = []
+    } = req.body
+
+    // Validate price
+    if (price === undefined || price === null) {
+        return res.status(400).send({ err: 'Price is required' })
     }
 
     try {
+        const existingStay = await stayService.getById(_id)
+
+        logger.info(`Existing stay host: ${JSON.stringify(existingStay.host)}`)
+
+        // Extract host ID - handle both string and ObjectId
+        const existingHostId = existingStay.host._id?.toString() || existingStay.host._id
+        const currentUserId = loggedinUser._id?.toString() || loggedinUser._id
+
+        logger.info(`Comparing - existingHostId: ${existingHostId}, currentUserId: ${currentUserId}, isAdmin: ${loggedinUser.isAdmin}`)
+
+        // Check authorization against existing stay's host
+        if (!loggedinUser.isAdmin && existingHostId !== currentUserId) {
+            logger.warn(`Authorization failed: existingHostId=${existingHostId}, currentUserId=${currentUserId}`)
+            return res.status(403).send({ err: 'Not your stay' })
+        }
+
+        // Build updated stay object, preserving the original host
+        const stay = {
+            _id,
+            name: name || 'Untitled Stay',
+            type: type || 'House',
+            summary,
+            price,
+            capacity: capacity || guests || 1,
+            guests: guests || capacity || 1,
+            bedrooms: bedrooms || 1,
+            beds: beds || 1,
+            bathrooms: bathrooms || 1,
+            roomType: roomType || '',
+            imgUrls,
+            loc,
+            amenities,
+            availableFrom,
+            availableUntil,
+            host: existingStay.host, // Use existing host
+            reviews,
+            likedByUsers
+        }
+
         const updatedStay = await stayService.update(stay)
         res.json(updatedStay)
     } catch (err) {
-        logger.error('Failed to update stay', err)
+        logger.error(`Failed to update stay ${_id}`, err)
         res.status(400).send({ err: 'Failed to update stay' })
     }
 }
