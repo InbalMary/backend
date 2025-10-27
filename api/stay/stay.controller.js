@@ -64,6 +64,15 @@ export async function addStay(req, res) {
             return res.status(400).send({ err: 'Price is required' })
         }
 
+        // Set default dates (like local service)
+        const today = new Date()
+        const twoMonthsLater = new Date()
+        twoMonthsLater.setDate(today.getDate() + 60)
+
+        const formatDate = (date) => {
+            return date.toISOString().split('T')[0]
+        }
+
         const stay = {
             name: name || 'Untitled Stay',
             type: type || 'House',
@@ -78,8 +87,8 @@ export async function addStay(req, res) {
             imgUrls,
             loc,
             amenities,
-            availableFrom,
-            availableUntil,
+            availableFrom: availableFrom || formatDate(today),
+            availableUntil: availableUntil || formatDate(twoMonthsLater),
             host: {
                 _id: loggedinUser?._id,
                 fullname: loggedinUser?.fullname,
