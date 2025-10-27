@@ -17,6 +17,33 @@ export const stayService = {
     removeStayReview
 }
 
+// Helper function to get suggested stay range - returns Date objects like frontend util
+function _getSuggestedStayRange(stay, nights = 5) {
+    if (!stay.availableFrom || !stay.availableUntil) return null
+
+    const from = new Date(stay.availableFrom)
+    const until = new Date(stay.availableUntil)
+
+    const totalDays = Math.floor((until - from) / (1000 * 60 * 60 * 24))
+    if (totalDays <= nights) {
+        return { 
+            start: from.toISOString(), 
+            end: until.toISOString() 
+        }
+    }
+
+    const offset = Math.floor(totalDays / 3)
+    const start = new Date(from)
+    start.setDate(start.getDate() + offset)
+    const end = new Date(start)
+    end.setDate(start.getDate() + nights)
+
+    return { 
+        start: start.toISOString(), 
+        end: end.toISOString() 
+    }
+}
+
 async function query(filterBy = { txt: '', minPrice: 0 }) {
     try {
         const criteria = _buildCriteria(filterBy)
@@ -31,7 +58,33 @@ async function query(filterBy = { txt: '', minPrice: 0 }) {
         }
 
         const stays = await stayCursor.toArray()
-        return stays
+        
+        // Map stays like in local service
+        const mappedStays = stays.map(stay => ({
+            _id: stay._id,
+            name: stay.name,
+            type: stay.type,
+            imgUrls: stay.imgUrls,
+            price: stay.price,
+            summary: stay.summary,
+            capacity: stay.capacity || stay.guests || 0,
+            bathrooms: stay.bathrooms,
+            bedrooms: stay.bedrooms,
+            beds: stay.beds,
+            roomType: stay.roomType,
+            availableFrom: stay.availableFrom,
+            availableUntil: stay.availableUntil,
+            host: stay.host,
+            loc: stay.loc,
+            reviews: stay.reviews || [],
+            numReviews: stay.host?.numReviews || 0,
+            likedByUsers: stay.likedByUsers || [],
+            freeCancellation: Math.random() > 0.5,
+            rating: stay.host?.rating ? +stay.host.rating : null,
+            suggestedRange: _getSuggestedStayRange(stay)
+        }))
+        
+        return mappedStays
     } catch (err) {
         logger.error('cannot find stays', err)
         throw err
