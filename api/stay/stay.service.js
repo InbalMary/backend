@@ -26,9 +26,9 @@ function _getSuggestedStayRange(stay, nights = 5) {
 
     const totalDays = Math.floor((until - from) / (1000 * 60 * 60 * 24))
     if (totalDays <= nights) {
-        return { 
-            start: from.toISOString(), 
-            end: until.toISOString() 
+        return {
+            start: from.toISOString(),
+            end: until.toISOString()
         }
     }
 
@@ -38,9 +38,9 @@ function _getSuggestedStayRange(stay, nights = 5) {
     const end = new Date(start)
     end.setDate(start.getDate() + nights)
 
-    return { 
-        start: start.toISOString(), 
-        end: end.toISOString() 
+    return {
+        start: start.toISOString(),
+        end: end.toISOString()
     }
 }
 
@@ -58,7 +58,7 @@ async function query(filterBy = { txt: '', minPrice: 0 }) {
         }
 
         const stays = await stayCursor.toArray()
-        
+
         // Map stays like in local service
         const mappedStays = stays.map(stay => ({
             _id: stay._id,
@@ -83,7 +83,7 @@ async function query(filterBy = { txt: '', minPrice: 0 }) {
             rating: stay.host?.rating ? +stay.host.rating : null,
             suggestedRange: _getSuggestedStayRange(stay)
         }))
-        
+
         return mappedStays
     } catch (err) {
         logger.error('cannot find stays', err)
@@ -143,7 +143,7 @@ async function update(stay) {
 
         const toSet = {}
         const allowedKeys = ['name', 'summary', 'price', 'capacity', 'guests', 'bedrooms', 'beds', 'bathrooms', 'roomType', 'imgUrls', 'loc', 'amenities', 'type', 'availableFrom', 'availableUntil', 'host', 'reviews', 'likedByUsers']
-        
+
         for (const key of allowedKeys) {
             if (stay[key] !== undefined) {
                 toSet[key] = stay[key]
@@ -189,7 +189,7 @@ async function removeStayReview(stayId, reviewId) {
         const { _id: userId, isAdmin } = loggedinUser || {}
 
         const criteria = { _id: ObjectId.createFromHexString(stayId) }
-        
+
         // IMPORTANT: Only remove review if user is admin or review owner
         if (!isAdmin) {
             criteria['reviews.by._id'] = userId
@@ -236,8 +236,8 @@ function _buildCriteria(filterBy) {
     }
 
     if (filterBy.guests) {
-        criteria.capacity = { $gte: +filterBy.guests }
-    }
+    criteria.guests = { $gte: +filterBy.guests }
+}
 
     return criteria
 }

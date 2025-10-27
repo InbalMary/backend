@@ -4,6 +4,7 @@ import { asyncLocalStorage } from '../../services/als.service.js'
 
 export async function getStays(req, res) {
     try {
+        // console.log('Received query params:', req.query) 
         const filterBy = {
             txt: req.query.txt || '',
             minPrice: +req.query.minPrice || 0,
@@ -13,9 +14,11 @@ export async function getStays(req, res) {
             city: req.query.city || '',
             type: req.query.type || '',
             guests: +req.query.guests || 0,
-        }
+        }   
+        // console.log('Built filterBy:', filterBy)
 
         const stays = await stayService.query(filterBy)
+        // console.log('Found stays:', stays.length)
         res.json(stays)
     } catch (err) {
         logger.error('Failed to get stays', err)
