@@ -1,5 +1,4 @@
 import { ObjectId } from 'mongodb'
-
 import { logger } from '../../services/logger.service.js'
 import { dbService } from '../../services/db.service.js'
 
@@ -14,7 +13,6 @@ export const orderService = {
 async function query(filterBy = {}, loggedinUser) {
     try {
         const criteria = _buildCriteria(filterBy, loggedinUser)
-
         const collection = await dbService.getCollection('order')
         const orders = await collection.find(criteria).toArray()
 
@@ -22,8 +20,6 @@ async function query(filterBy = {}, loggedinUser) {
         orders.forEach(order => {
             if (order.host?.password) delete order.host.password
             if (order.guest?.password) delete order.guest.password
-
-            // Convert ObjectIds to strings for client
             if (order.host?._id) order.host._id = order.host._id.toString()
             if (order.guest?._id) order.guest._id = order.guest._id.toString()
         })
@@ -38,28 +34,26 @@ async function query(filterBy = {}, loggedinUser) {
 async function getById(orderId, loggedinUser) {
     try {
         const criteria = { _id: ObjectId.createFromHexString(orderId) }
-
         const collection = await dbService.getCollection('order')
         const order = await collection.findOne(criteria)
 
-        if (!order) throw `Order ${orderId} not found`
+        if (!order) return null
 
         // Verify user is either the guest or the host
         const { _id: userId, isAdmin } = loggedinUser || {}
-        const userObjectId = ObjectId.createFromHexString(userId)
+        if (userId) {
+            const userObjectId = ObjectId.createFromHexString(userId)
+            const isGuest = order.guest._id.equals(userObjectId)
+            const isHost = order.host._id.equals(userObjectId)
 
-        const isGuest = order.guest._id.equals(userObjectId)
-        const isHost = order.host._id.equals(userObjectId)
-
-        if (!isAdmin && !isGuest && !isHost) {
-            throw 'Not authorized to view this order'
+            if (!isAdmin && !isGuest && !isHost) {
+                throw new Error('Not authorized to view this order')
+            }
         }
 
         // Remove sensitive data
         if (order.host?.password) delete order.host.password
         if (order.guest?.password) delete order.guest.password
-
-        // Convert ObjectIds to strings for client
         if (order.host?._id) order.host._id = order.host._id.toString()
         if (order.guest?._id) order.guest._id = order.guest._id.toString()
 
@@ -78,7 +72,7 @@ async function remove(orderId, loggedinUser) {
         const criteria = { _id: ObjectId.createFromHexString(orderId) }
 
         // Only guest or admin can remove order
-        if (!isAdmin) {
+        if (!isAdmin && userId) {
             const userObjectId = ObjectId.createFromHexString(userId)
             criteria['guest._id'] = userObjectId
         }
@@ -86,7 +80,10 @@ async function remove(orderId, loggedinUser) {
         const collection = await dbService.getCollection('order')
         const res = await collection.deleteOne(criteria)
 
-        if (res.deletedCount === 0) throw 'Not authorized to remove this order'
+        if (res.deletedCount === 0) {
+            throw new Error('Not authorized to remove this order')
+        }
+        
         return orderId
     } catch (err) {
         logger.error(`cannot remove order ${orderId}`, err)
@@ -114,20 +111,20 @@ async function update(order, loggedinUser) {
 
     try {
         const criteria = { _id: ObjectId.createFromHexString(order._id) }
-
-        // Get existing order to check authorization
         const collection = await dbService.getCollection('order')
         const existingOrder = await collection.findOne(criteria)
 
-        if (!existingOrder) throw 'Order not found'
+        if (!existingOrder) throw new Error('Order not found')
 
         // Guest can update their order, host can update status
-        const userObjectId = ObjectId.createFromHexString(userId)
-        const isGuest = existingOrder.guest._id.equals(userObjectId)
-        const isHost = existingOrder.host._id.equals(userObjectId)
+        if (userId) {
+            const userObjectId = ObjectId.createFromHexString(userId)
+            const isGuest = existingOrder.guest._id.equals(userObjectId)
+            const isHost = existingOrder.host._id.equals(userObjectId)
 
-        if (!isAdmin && !isGuest && !isHost) {
-            throw 'Not authorized to update this order'
+            if (!isAdmin && !isGuest && !isHost) {
+                throw new Error('Not authorized to update this order')
+            }
         }
 
         // convert IDs from string to ObjectId
@@ -169,13 +166,11 @@ async function update(order, loggedinUser) {
         await collection.updateOne(criteria, { $set: orderToSave })
 
         // Return order with string IDs for client
-        const updatedOrder = {
+        return {
             ...order,
             host: { ...order.host, _id: order.host._id.toString() },
             guest: { ...order.guest, _id: order.guest._id.toString() }
         }
-
-        return updatedOrder
     } catch (err) {
         logger.error(`cannot update order ${order._id}`, err)
         throw err

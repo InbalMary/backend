@@ -1,5 +1,6 @@
 import { logger } from '../../services/logger.service.js'
 import { orderService } from './order.service.js'
+import { ObjectId } from 'mongodb'
 
 export async function getOrders(req, res) {
     try {
@@ -15,82 +16,108 @@ export async function getOrders(req, res) {
         }
 
         const orders = await orderService.query(filterBy, req.loggedinUser)
-        res.json(orders)
+        res.status(200).json(orders)
     } catch (err) {
         logger.error('Failed to get orders', err)
-        res.status(400).send({ err: 'Failed to get orders' })
+        res.status(500).send({ err: 'server error' })
     }
 }
 
 export async function getOrderById(req, res) {
     try {
-        const orderId = req.params.id
-        const order = await orderService.getById(orderId, req.loggedinUser)
-        res.json(order)
+        const { id } = req.params
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).send({ err: 'id not valid' })
+        }
+
+        const order = await orderService.getById(id, req.loggedinUser)
+
+        if (!order) {
+            return res.status(404).send({ err: 'order not found' })
+        }
+
+        res.status(200).json(order)
     } catch (err) {
         logger.error('Failed to get order', err)
-        res.status(400).send({ err: 'Failed to get order' })
+        const status = err.message?.includes('Not authorized') ? 403 : 500
+        res.status(status).send({ err: err.message || 'server error' })
     }
 }
 
 export async function addOrder(req, res) {
     const { loggedinUser, body } = req
 
-    const order = {
-        host: body.host,
-        guest: {
-            _id: loggedinUser._id,
-            fullname: loggedinUser.fullname,
-            imgUrl: loggedinUser.imgUrl
-        },
-        totalPrice: body.totalPrice,
-        pricePerNight: body.pricePerNight,
-        cleaningFee: body.cleaningFee || 0,
-        serviceFee: body.serviceFee || 0,
-        numNights: body.numNights,
-        startDate: body.startDate,
-        endDate: body.endDate,
-        guests: body.guests,
-        stay: body.stay,
-        msgs: body.msgs || [],
-        status: 'pending',
-        bookedAt: new Date().toISOString().split('T')[0]
-    }
-
     try {
+        const order = {
+            host: body.host,
+            guest: {
+                _id: loggedinUser._id,
+                fullname: loggedinUser.fullname,
+                imgUrl: loggedinUser.imgUrl
+            },
+            totalPrice: body.totalPrice,
+            pricePerNight: body.pricePerNight,
+            cleaningFee: body.cleaningFee || 0,
+            serviceFee: body.serviceFee || 0,
+            numNights: body.numNights,
+            startDate: body.startDate,
+            endDate: body.endDate,
+            guests: body.guests,
+            stay: body.stay,
+            msgs: body.msgs || [],
+            status: 'pending',
+            bookedAt: new Date().toISOString().split('T')[0]
+        }
+
         const addedOrder = await orderService.add(order)
-        res.json(addedOrder)
+        res.status(201).json(addedOrder)
     } catch (err) {
         logger.error('Failed to add order', err)
-        res.status(400).send({ err: 'Failed to add order' })
+        res.status(400).send({ err: err.message || 'bad data' })
     }
 }
 
 export async function updateOrder(req, res) {
-    const { loggedinUser, body: order } = req
-    const { _id: userId, isAdmin } = loggedinUser
+    const { loggedinUser, body } = req
 
     try {
-        // Verify authorization in service
+        const { id } = req.params
+
+        // Validate ObjectId
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).send({ err: 'bad id' })
+        }
+
+        const order = { ...body, _id: id }
         const updatedOrder = await orderService.update(order, loggedinUser)
-        // console.log('Order updated successfully')
-        res.json(updatedOrder)
+
+        if (!updatedOrder) {
+            return res.status(404).send({ err: 'order not found' })
+        }
+
+        res.status(200).json(updatedOrder)
     } catch (err) {
-        // console.error('Update failed:', err.message)
         logger.error('Failed to update order', err)
         const status = err.message?.includes('Not authorized') ? 403 : 400
-        res.status(status).send({ err: err.message || 'Failed to update order' })
+        res.status(status).send({ err: err.message || 'bad data' })
     }
 }
 
 export async function removeOrder(req, res) {
     try {
-        const orderId = req.params.id
-        const removedId = await orderService.remove(orderId, req.loggedinUser)
-        res.send(removedId)
+        const { id } = req.params
+
+        // Validate ObjectId
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).send({ err: 'bad id' })
+        }
+
+        await orderService.remove(id, req.loggedinUser)
+        res.status(204).end()
     } catch (err) {
         logger.error('Failed to remove order', err)
-        const status = err.message?.includes('Not authorized') ? 403 : 400
-        res.status(status).send({ err: err.message || 'Failed to remove order' })
+        const status = err.message?.includes('Not authorized') ? 403 : 500
+        res.status(status).send({ err: err.message || 'server error' })
     }
 }
