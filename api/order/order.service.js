@@ -22,6 +22,7 @@ async function query(filterBy = {}, loggedinUser) {
             if (order.guest?.password) delete order.guest.password
             if (order.host?._id) order.host._id = order.host._id.toString()
             if (order.guest?._id) order.guest._id = order.guest._id.toString()
+            if (!order.guestId && order.guest?._id) order.guestId = order.guest._id
         })
 
         return orders
@@ -45,17 +46,14 @@ async function getById(orderId, loggedinUser) {
             const userObjectId = ObjectId.createFromHexString(userId)
             const isGuest = order.guest._id.equals(userObjectId)
             const isHost = order.host._id.equals(userObjectId)
-
-            if (!isAdmin && !isGuest && !isHost) {
-                throw new Error('Not authorized to view this order')
-            }
+            if (!isAdmin && !isGuest && !isHost) throw new Error('Not authorized to view this order')
         }
 
-        // Remove sensitive data
         if (order.host?.password) delete order.host.password
         if (order.guest?.password) delete order.guest.password
         if (order.host?._id) order.host._id = order.host._id.toString()
         if (order.guest?._id) order.guest._id = order.guest._id.toString()
+        if (!order.guestId && order.guest?._id) order.guestId = order.guest._id
 
         order.createdAt = order._id.getTimestamp()
         return order
@@ -80,10 +78,8 @@ async function remove(orderId, loggedinUser) {
         const collection = await dbService.getCollection('order')
         const res = await collection.deleteOne(criteria)
 
-        if (res.deletedCount === 0) {
-            throw new Error('Not authorized to remove this order')
-        }
-        
+        if (res.deletedCount === 0) throw new Error('Not authorized to remove this order')
+
         return orderId
     } catch (err) {
         logger.error(`cannot remove order ${orderId}`, err)
@@ -96,6 +92,9 @@ async function add(order) {
         // Remove sensitive data before saving
         if (order.host?.password) delete order.host.password
         if (order.guest?.password) delete order.guest.password
+
+        // Ensure guestId is set for frontend
+        if (!order.guestId && order.guest?._id) order.guestId = order.guest._id
 
         const collection = await dbService.getCollection('order')
         await collection.insertOne(order)
@@ -121,34 +120,25 @@ async function update(order, loggedinUser) {
             const userObjectId = ObjectId.createFromHexString(userId)
             const isGuest = existingOrder.guest._id.equals(userObjectId)
             const isHost = existingOrder.host._id.equals(userObjectId)
-
-            if (!isAdmin && !isGuest && !isHost) {
-                throw new Error('Not authorized to update this order')
-            }
+            if (!isAdmin && !isGuest && !isHost) throw new Error('Not authorized to update this order')
         }
 
-        // convert IDs from string to ObjectId
         const normalizedHost = {
             ...order.host,
-            _id: typeof order.host._id === 'string'
-                ? ObjectId.createFromHexString(order.host._id)
-                : order.host._id
+            _id: typeof order.host._id === 'string' ? ObjectId.createFromHexString(order.host._id) : order.host._id
         }
-
         const normalizedGuest = {
             ...order.guest,
-            _id: typeof order.guest._id === 'string'
-                ? ObjectId.createFromHexString(order.guest._id)
-                : order.guest._id
+            _id: typeof order.guest._id === 'string' ? ObjectId.createFromHexString(order.guest._id) : order.guest._id
         }
 
-        // Remove sensitive data
         if (normalizedHost.password) delete normalizedHost.password
         if (normalizedGuest.password) delete normalizedGuest.password
 
         const orderToSave = {
             host: normalizedHost,
             guest: normalizedGuest,
+            guestId: normalizedGuest._id,
             totalPrice: order.totalPrice,
             pricePerNight: order.pricePerNight,
             cleaningFee: order.cleaningFee,
@@ -169,7 +159,8 @@ async function update(order, loggedinUser) {
         return {
             ...order,
             host: { ...order.host, _id: order.host._id.toString() },
-            guest: { ...order.guest, _id: order.guest._id.toString() }
+            guest: { ...order.guest, _id: order.guest._id.toString() },
+            guestId: order.guest._id.toString()
         }
     } catch (err) {
         logger.error(`cannot update order ${order._id}`, err)
@@ -183,45 +174,35 @@ function _buildCriteria(filterBy, loggedinUser) {
 
     // Users can only see their own orders (as guest or host) unless admin
     if (!isAdmin && userId) {
-        const userObjectId = ObjectId.createFromHexString(userId)
-
-        criteria.$or = [
-            { 'guest._id': userObjectId },
-            { 'host._id': userObjectId }
-        ]
+        let userObjectId
+        try {
+            userObjectId = ObjectId.createFromHexString(userId)
+            criteria.$or = [
+                { 'guest._id': userObjectId },
+                { 'host._id': userObjectId }
+            ]
+        } catch {
+            criteria.$or = [
+                { 'guest._id': userId },
+                { 'host._id': userId }
+            ]
+        }
     }
 
     if (filterBy.hostId) {
-        criteria['host._id'] = ObjectId.createFromHexString(filterBy.hostId)
+        try { criteria['host._id'] = ObjectId.createFromHexString(filterBy.hostId) }
+        catch { criteria['host._id'] = filterBy.hostId }
     }
-
     if (filterBy.guestId) {
-        criteria['guest._id'] = ObjectId.createFromHexString(filterBy.guestId)
+        try { criteria['guest._id'] = ObjectId.createFromHexString(filterBy.guestId) }
+        catch { criteria['guest._id'] = filterBy.guestId }
     }
-
-    if (filterBy.status) {
-        criteria.status = filterBy.status
-    }
-
-    if (filterBy.stayId) {
-        criteria['stay._id'] = filterBy.stayId
-    }
-
-    if (filterBy.totalPriceMin) {
-        criteria.totalPrice = { ...criteria.totalPrice, $gte: +filterBy.totalPriceMin }
-    }
-
-    if (filterBy.totalPriceMax) {
-        criteria.totalPrice = { ...criteria.totalPrice, $lte: +filterBy.totalPriceMax }
-    }
-
-    if (filterBy.startDate) {
-        criteria.startDate = { $gte: filterBy.startDate }
-    }
-
-    if (filterBy.endDate) {
-        criteria.endDate = { $lte: filterBy.endDate }
-    }
+    if (filterBy.status) criteria.status = filterBy.status
+    if (filterBy.stayId) criteria['stay._id'] = filterBy.stayId
+    if (filterBy.totalPriceMin) criteria.totalPrice = { ...criteria.totalPrice, $gte: +filterBy.totalPriceMin }
+    if (filterBy.totalPriceMax) criteria.totalPrice = { ...criteria.totalPrice, $lte: +filterBy.totalPriceMax }
+    if (filterBy.startDate) criteria.startDate = { $gte: filterBy.startDate }
+    if (filterBy.endDate) criteria.endDate = { $lte: filterBy.endDate }
 
     return criteria
 }

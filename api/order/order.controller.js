@@ -26,16 +26,10 @@ export async function getOrders(req, res) {
 export async function getOrderById(req, res) {
     try {
         const { id } = req.params
-
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).send({ err: 'id not valid' })
-        }
+        if (!ObjectId.isValid(id)) return res.status(400).send({ err: 'id not valid' })
 
         const order = await orderService.getById(id, req.loggedinUser)
-
-        if (!order) {
-            return res.status(404).send({ err: 'order not found' })
-        }
+        if (!order) return res.status(404).send({ err: 'order not found' })
 
         res.status(200).json(order)
     } catch (err) {
@@ -47,15 +41,22 @@ export async function getOrderById(req, res) {
 
 export async function addOrder(req, res) {
     const { loggedinUser, body } = req
-
     try {
+        let guestId = loggedinUser._id
+        try {
+            guestId = ObjectId.createFromHexString(loggedinUser._id)
+        } catch (err) {
+            // string (localStorage)
+        }
+
         const order = {
             host: body.host,
             guest: {
-                _id: loggedinUser._id,
+                _id: guestId,
                 fullname: loggedinUser.fullname,
                 imgUrl: loggedinUser.imgUrl
             },
+            guestId: guestId,
             totalPrice: body.totalPrice,
             pricePerNight: body.pricePerNight,
             cleaningFee: body.cleaningFee || 0,
@@ -80,21 +81,13 @@ export async function addOrder(req, res) {
 
 export async function updateOrder(req, res) {
     const { loggedinUser, body } = req
-
     try {
         const { id } = req.params
-
-        // Validate ObjectId
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).send({ err: 'bad id' })
-        }
+        if (!ObjectId.isValid(id)) return res.status(400).send({ err: 'bad id' })
 
         const order = { ...body, _id: id }
         const updatedOrder = await orderService.update(order, loggedinUser)
-
-        if (!updatedOrder) {
-            return res.status(404).send({ err: 'order not found' })
-        }
+        if (!updatedOrder) return res.status(404).send({ err: 'order not found' })
 
         res.status(200).json(updatedOrder)
     } catch (err) {
@@ -107,11 +100,7 @@ export async function updateOrder(req, res) {
 export async function removeOrder(req, res) {
     try {
         const { id } = req.params
-
-        // Validate ObjectId
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).send({ err: 'bad id' })
-        }
+        if (!ObjectId.isValid(id)) return res.status(400).send({ err: 'bad id' })
 
         await orderService.remove(id, req.loggedinUser)
         res.status(204).end()
