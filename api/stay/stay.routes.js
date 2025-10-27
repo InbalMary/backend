@@ -1,26 +1,20 @@
 import express from 'express'
-
-import { requireAuth } from '../../middlewares/requireAuth.middleware.js'
 import { log } from '../../middlewares/logger.middleware.js'
-
 import { getStays, getStayById, addStay, updateStay, removeStay, addStayReview, removeStayReview } from './stay.controller.js'
 
 const router = express.Router()
 
-// We can add a middleware for the entire router:
-// router.use(requireAuth)
-
+// Public routes
 router.get('/', log, getStays)
 router.get('/:id', log, getStayById)
-router.post('/', log, requireAuth, addStay)
 
-// Handle updates via POST to avoid PUT middleware issues
-router.post('/:id', log, requireAuth, updateStay)
+// Protected routes - auth checked in controller (like home.routes)
+router.post('/', log, addStay)
+router.put('/:id', log, updateStay)
+router.delete('/:id', log, removeStay)
 
-router.put('/:id', log, requireAuth, updateStay)
-router.delete('/:id', log, requireAuth, removeStay)
-
-router.post('/:id/review', requireAuth, addStayReview)
-router.delete('/:id/review/:reviewId', requireAuth, removeStayReview)
+// Review routes
+router.post('/:id/review', log, addStayReview)
+router.delete('/:id/review/:reviewId', log, removeStayReview)
 
 export const stayRoutes = router

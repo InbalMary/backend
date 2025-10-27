@@ -88,30 +88,18 @@ async function update(stay) {
     try {
         const criteria = { _id: ObjectId.createFromHexString(stay._id) }
 
-        const stayToSave = {
-            name: stay.name,
-            summary: stay.summary,
-            price: stay.price,
-            capacity: stay.capacity,
-            guests: stay.guests,
-            bedrooms: stay.bedrooms,
-            beds: stay.beds,
-            bathrooms: stay.bathrooms,
-            roomType: stay.roomType,
-            imgUrls: stay.imgUrls,
-            loc: stay.loc,
-            amenities: stay.amenities,
-            type: stay.type,
-            availableFrom: stay.availableFrom,
-            availableUntil: stay.availableUntil,
-            host: stay.host,
-            reviews: stay.reviews,
-            likedByUsers: stay.likedByUsers
+        const toSet = {}
+        const allowedKeys = ['name', 'summary', 'price', 'capacity', 'guests', 'bedrooms', 'beds', 'bathrooms', 'roomType', 'imgUrls', 'loc', 'amenities', 'type', 'availableFrom', 'availableUntil', 'host', 'reviews', 'likedByUsers']
+        
+        for (const key of allowedKeys) {
+            if (stay[key] !== undefined) {
+                toSet[key] = stay[key]
+            }
         }
 
         const collection = await dbService.getCollection('stay')
-        await collection.updateOne(criteria, { $set: stayToSave })
-        return stay
+        await collection.updateOne(criteria, { $set: toSet })
+        return { ...stay, ...toSet }
     } catch (err) {
         logger.error(`cannot update stay ${stay._id}`, err)
         throw err
