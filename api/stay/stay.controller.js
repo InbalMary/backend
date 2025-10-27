@@ -1,5 +1,6 @@
 import { logger } from '../../services/logger.service.js'
 import { stayService } from './stay.service.js'
+import { asyncLocalStorage } from '../../services/als.service.js'
 
 export async function getStays(req, res) {
     try {
@@ -34,7 +35,9 @@ export async function getStayById(req, res) {
 }
 
 export async function addStay(req, res) {
-    const { loggedinUser, body } = req
+    const store = asyncLocalStorage.getStore()
+    const loggedinUser = store?.loggedinUser || req.loggedinUser
+    const { body } = req
 
     try {
         const {
@@ -95,9 +98,14 @@ export async function addStay(req, res) {
 }
 
 export async function updateStay(req, res) {
-    const { loggedinUser, body } = req
+    const store = asyncLocalStorage.getStore()
+    const loggedinUser = store?.loggedinUser || req.loggedinUser
+    const { body } = req
+    
     const userId = loggedinUser?._id
     const isAdmin = loggedinUser?.isAdmin
+
+    logger.info(`UpdateStay - userId: ${userId}, isAdmin: ${isAdmin}`)
 
     try {
         const stay = { ...body, _id: req.params.id }
@@ -110,7 +118,10 @@ export async function updateStay(req, res) {
         const existingStay = await stayService.getById(stay._id)
         const existingHostId = String(existingStay.host._id)
 
+        logger.info(`Comparing - existingHostId: ${existingHostId}, userId: ${userId}`)
+
         if (!isAdmin && existingHostId !== String(userId)) {
+            logger.warn(`Auth failed: host=${existingHostId}, user=${userId}`)
             return res.status(403).send('Not your stay')
         }
 
@@ -137,7 +148,8 @@ export async function removeStay(req, res) {
 }
 
 export async function addStayReview(req, res) {
-    const { loggedinUser } = req
+    const store = asyncLocalStorage.getStore()
+    const loggedinUser = store?.loggedinUser || req.loggedinUser
 
     try {
         const stayId = req.params.id
