@@ -1,4 +1,5 @@
 import { logger } from '../../services/logger.service.js'
+import { socketService } from '../../services/socket.service.js'
 import { orderService } from './order.service.js'
 import { ObjectId } from 'mongodb'
 
@@ -88,6 +89,11 @@ export async function updateOrder(req, res) {
         const order = { ...body, _id: id }
         const updatedOrder = await orderService.update(order, loggedinUser)
         if (!updatedOrder) return res.status(404).send({ err: 'order not found' })
+
+        socketService.emitTo({
+            type: 'update-guest-orders',
+            data: updatedOrder
+        })
 
         res.status(200).json(updatedOrder)
     } catch (err) {

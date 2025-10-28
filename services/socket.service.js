@@ -42,7 +42,10 @@ export function setupSocketAPI(http) {
             logger.info(`Removing socket.userId for socket [id: ${socket.id}]`)
             delete socket.userId
         })
-
+        socket.on('order-status-changed', orderData => {
+            logger.info(`Order status changed [id: ${orderData._id}], notifying guest`)
+            gIo.emit('update-guest-orders', orderData)
+        })
     })
 }
 
