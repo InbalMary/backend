@@ -14,7 +14,7 @@ export async function getStays(req, res) {
             city: req.query.city || '',
             type: req.query.type || '',
             guests: +req.query.guests || 0,
-        }   
+        }
         // console.log('Built filterBy:', filterBy)
 
         const stays = await stayService.query(filterBy)
@@ -72,9 +72,7 @@ export async function addStay(req, res) {
         const twoMonthsLater = new Date()
         twoMonthsLater.setDate(today.getDate() + 60)
 
-        const formatDate = (date) => {
-            return date.toISOString().split('T')[0]
-        }
+        const formatDate = (date) => date.toISOString().split('T')[0]
 
         const stay = {
             name: name || 'Untitled Stay',
@@ -95,7 +93,7 @@ export async function addStay(req, res) {
             host: {
                 _id: loggedinUser?._id,
                 fullname: loggedinUser?.fullname,
-                imgUrl: loggedinUser?.imgUrl
+                imgUrl: body.host?.imgUrl || loggedinUser?.imgUrl || null
             },
             reviews: [],
             likedByUsers: []
