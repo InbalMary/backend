@@ -70,7 +70,7 @@ export async function addOrder(req, res) {
             status: 'pending',
             bookedAt: new Date().toISOString().split('T')[0]
         }
-
+        // console.log('Creating order with host:', order.host)
         const addedOrder = await orderService.add(order)
         res.status(201).json(addedOrder)
     } catch (err) {

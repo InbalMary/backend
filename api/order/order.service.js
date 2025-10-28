@@ -118,19 +118,19 @@ async function update(order, loggedinUser) {
         // Guest can update their order, host can update status
         if (userId) {
             const userObjectId = ObjectId.createFromHexString(userId)
-            
+
             // Normalize existingOrder IDs to ObjectId for comparison
-            const existingGuestId = existingOrder.guest._id instanceof ObjectId 
-                ? existingOrder.guest._id 
+            const existingGuestId = existingOrder.guest._id instanceof ObjectId
+                ? existingOrder.guest._id
                 : ObjectId.createFromHexString(existingOrder.guest._id)
-            
-            const existingHostId = existingOrder.host._id instanceof ObjectId 
-                ? existingOrder.host._id 
+
+            const existingHostId = existingOrder.host._id instanceof ObjectId
+                ? existingOrder.host._id
                 : ObjectId.createFromHexString(existingOrder.host._id)
-            
+
             const isGuest = existingGuestId.equals(userObjectId)
             const isHost = existingHostId.equals(userObjectId)
-            
+
             if (!isAdmin && !isGuest && !isHost) {
                 throw new Error('Not authorized to update this order')
             }
@@ -138,14 +138,14 @@ async function update(order, loggedinUser) {
 
         const normalizedHost = {
             ...order.host,
-            _id: typeof order.host._id === 'string' 
-                ? ObjectId.createFromHexString(order.host._id) 
+            _id: typeof order.host._id === 'string'
+                ? ObjectId.createFromHexString(order.host._id)
                 : order.host._id
         }
         const normalizedGuest = {
             ...order.guest,
-            _id: typeof order.guest._id === 'string' 
-                ? ObjectId.createFromHexString(order.guest._id) 
+            _id: typeof order.guest._id === 'string'
+                ? ObjectId.createFromHexString(order.guest._id)
                 : order.guest._id
         }
 
@@ -189,31 +189,61 @@ function _buildCriteria(filterBy, loggedinUser) {
     const criteria = {}
     const { _id: userId, isAdmin } = loggedinUser || {}
 
-    // Users can only see their own orders (as guest or host) unless admin
-    if (!isAdmin && userId) {
+    // specific hostId (for ReservationsPage)
+    if (filterBy.hostId) {
+        if (!isAdmin && userId) {
+            const requestedHostId = filterBy.hostId.toString()
+            const currentUserId = typeof userId === 'string' ? userId : userId.toString()
+
+            if (requestedHostId !== currentUserId) {
+                throw new Error('Not authorized to view these orders')
+            }
+        }
+
+        // search both string and ObjectId
+        try {
+            const hostObjectId = ObjectId.createFromHexString(filterBy.hostId)
+            criteria.$or = [
+                { 'host._id': filterBy.hostId },        // string
+                { 'host._id': hostObjectId }            // ObjectId
+            ]
+            // console.log('Searching for both string and ObjectId:', filterBy.hostId)
+        } catch (err) {
+            console.error('Invalid hostId format:', err.message)
+            // criteria['host._id'] = filterBy.hostId
+        }
+    }
+    // specific guestId (for TripIndex)
+    else if (filterBy.guestId) {
+        try {
+            criteria['guest._id'] = ObjectId.createFromHexString(filterBy.guestId)
+        } catch {
+            criteria['guest._id'] = filterBy.guestId
+        }
+
+        if (!isAdmin && userId) {
+            const requestedGuestId = filterBy.guestId
+            const currentUserId = userId.toString ? userId.toString() : userId
+
+            if (requestedGuestId !== currentUserId) {
+                throw new Error('Not authorized to view these orders')
+            }
+        }
+    }
+    else if (!isAdmin && userId) {
         let userObjectId
         try {
             userObjectId = ObjectId.createFromHexString(userId)
-            criteria.$or = [
-                { 'guest._id': userObjectId },
-                { 'host._id': userObjectId }
-            ]
         } catch {
-            criteria.$or = [
-                { 'guest._id': userId },
-                { 'host._id': userId }
-            ]
+            userObjectId = userId
         }
+
+        criteria.$or = [
+            { 'guest._id': userObjectId },
+            { 'host._id': userObjectId }
+        ]
     }
 
-    if (filterBy.hostId) {
-        try { criteria['host._id'] = ObjectId.createFromHexString(filterBy.hostId) }
-        catch { criteria['host._id'] = filterBy.hostId }
-    }
-    if (filterBy.guestId) {
-        try { criteria['guest._id'] = ObjectId.createFromHexString(filterBy.guestId) }
-        catch { criteria['guest._id'] = filterBy.guestId }
-    }
     if (filterBy.status) criteria.status = filterBy.status
     if (filterBy.stayId) criteria['stay._id'] = filterBy.stayId
     if (filterBy.totalPriceMin) criteria.totalPrice = { ...criteria.totalPrice, $gte: +filterBy.totalPriceMin }
@@ -221,5 +251,6 @@ function _buildCriteria(filterBy, loggedinUser) {
     if (filterBy.startDate) criteria.startDate = { $gte: filterBy.startDate }
     if (filterBy.endDate) criteria.endDate = { $lte: filterBy.endDate }
 
+    // console.log('_buildCriteria result:', JSON.stringify(criteria, null, 2))
     return criteria
 }
