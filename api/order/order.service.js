@@ -118,18 +118,35 @@ async function update(order, loggedinUser) {
         // Guest can update their order, host can update status
         if (userId) {
             const userObjectId = ObjectId.createFromHexString(userId)
-            const isGuest = existingOrder.guest._id.equals(userObjectId)
-            const isHost = existingOrder.host._id.equals(userObjectId)
-            if (!isAdmin && !isGuest && !isHost) throw new Error('Not authorized to update this order')
+            
+            // Normalize existingOrder IDs to ObjectId for comparison
+            const existingGuestId = existingOrder.guest._id instanceof ObjectId 
+                ? existingOrder.guest._id 
+                : ObjectId.createFromHexString(existingOrder.guest._id)
+            
+            const existingHostId = existingOrder.host._id instanceof ObjectId 
+                ? existingOrder.host._id 
+                : ObjectId.createFromHexString(existingOrder.host._id)
+            
+            const isGuest = existingGuestId.equals(userObjectId)
+            const isHost = existingHostId.equals(userObjectId)
+            
+            if (!isAdmin && !isGuest && !isHost) {
+                throw new Error('Not authorized to update this order')
+            }
         }
 
         const normalizedHost = {
             ...order.host,
-            _id: typeof order.host._id === 'string' ? ObjectId.createFromHexString(order.host._id) : order.host._id
+            _id: typeof order.host._id === 'string' 
+                ? ObjectId.createFromHexString(order.host._id) 
+                : order.host._id
         }
         const normalizedGuest = {
             ...order.guest,
-            _id: typeof order.guest._id === 'string' ? ObjectId.createFromHexString(order.guest._id) : order.guest._id
+            _id: typeof order.guest._id === 'string' 
+                ? ObjectId.createFromHexString(order.guest._id) 
+                : order.guest._id
         }
 
         if (normalizedHost.password) delete normalizedHost.password
