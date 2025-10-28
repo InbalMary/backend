@@ -23,6 +23,8 @@ async function query(filterBy = {}, loggedinUser) {
             if (order.host?._id) order.host._id = order.host._id.toString()
             if (order.guest?._id) order.guest._id = order.guest._id.toString()
             if (!order.guestId && order.guest?._id) order.guestId = order.guest._id
+
+            if (!order.guest.imgUrl) order.guest.imgUrl = null
         })
 
         return orders

@@ -54,7 +54,7 @@ export async function addOrder(req, res) {
             guest: {
                 _id: guestId,
                 fullname: loggedinUser.fullname,
-                imgUrl: loggedinUser.imgUrl
+                imgUrl: body.guest?.imgUrl || loggedinUser.imgUrl || null
             },
             guestId: guestId,
             totalPrice: body.totalPrice,
