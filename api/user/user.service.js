@@ -10,6 +10,8 @@ export const userService = {
     remove, // Delete (remove user)
     query, // List (of users)
     getByUsername, // Used for Login
+    addWishlistToUser,
+    removeWishlistFromUser,
 }
 
 async function query(filterBy = {}) {
@@ -87,6 +89,7 @@ async function update(user) {
             fullname: user.fullname,
             score: user.score,
             imgUrl: user.imgUrl,
+            wishlists: user.wishlists
         }
         const collection = await dbService.getCollection('user')
         await collection.updateOne({ _id: userToSave._id }, { $set: userToSave })
@@ -107,6 +110,7 @@ async function add(user) {
             imgUrl: user.imgUrl,
             isAdmin: false,
             score: user.score || 100,
+            wishlists: user.wishlists || []
         }
         const collection = await dbService.getCollection('user')
         await collection.insertOne(userToAdd)
@@ -117,7 +121,8 @@ async function add(user) {
             fullname: userToAdd.fullname,
             imgUrl: userToAdd.imgUrl,
             score: userToAdd.score,
-            isAdmin: userToAdd.isAdmin
+            isAdmin: userToAdd.isAdmin,
+            wishlists: userToAdd.wishlists
         }
     } catch (err) {
         logger.error('cannot add user', err)
@@ -143,3 +148,31 @@ function _buildCriteria(filterBy) {
     }
     return criteria
 }
+
+async function addWishlistToUser(userId, wishlistId) {
+    try {
+        const collection = await dbService.getCollection('user')
+        await collection.updateOne(
+            { _id: ObjectId.createFromHexString(userId) },
+            { $push: { wishlists: wishlistId } }
+        )
+        logger.debug(`Wishlist ${wishlistId} added to user ${userId}`)
+    } catch (err) {
+        logger.error('cannot add wishlist to user', err)
+        throw err
+    }
+}
+
+async function removeWishlistFromUser(userId, wishlistId) {
+    try {
+        const collection = await dbService.getCollection('user')
+        await collection.updateOne(
+            { _id: ObjectId.createFromHexString(userId) },
+            { $pull: { wishlists: wishlistId } }
+        )
+    } catch (err) {
+        logger.error(`Failed to remove wishlist ${wishlistId} from user ${userId}`, err)
+        throw err
+    }
+}
+

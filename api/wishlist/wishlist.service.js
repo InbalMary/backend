@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-
+import { userService } from '../user/user.service.js'
 import { logger } from '../../services/logger.service.js'
 import { dbService } from '../../services/db.service.js'
 import { asyncLocalStorage } from '../../services/als.service.js'
@@ -43,12 +43,12 @@ async function getById(wishlistId) {
         const wishlist = await collection.findOne(criteria)
 
         if (!wishlist) throw `Wishlist ${wishlistId} not found`
-        
+
         // Convert ObjectIds to strings for client
         if (wishlist.byUser?._id) {
             wishlist.byUser._id = wishlist.byUser._id.toString()
         }
-        
+
         wishlist.createdAt = wishlist._id.getTimestamp()
         return wishlist
     } catch (err) {
@@ -63,7 +63,7 @@ async function remove(wishlistId) {
 
     try {
         const criteria = { _id: ObjectId.createFromHexString(wishlistId) }
-        
+
         // Only owner or admin can remove
         if (!isAdmin) {
             const userObjectId = ObjectId.createFromHexString(userId)
@@ -71,9 +71,24 @@ async function remove(wishlistId) {
         }
 
         const collection = await dbService.getCollection('wishlist')
-        const res = await collection.deleteOne(criteria)
+        const wishlist = await collection.findOne(criteria)
+        if (!wishlist) throw 'Wishlist not found'
 
+        if (!isAdmin) {
+            const existingUserId = wishlist.byUser._id?.toString
+                ? wishlist.byUser._id.toString()
+                : wishlist.byUser._id
+            if (existingUserId !== userId) throw 'Not your wishlist'
+        }
+
+        const res = await collection.deleteOne(criteria)
         if (res.deletedCount === 0) throw 'Not your wishlist or wishlist not found'
+
+        await userService.removeWishlistFromUser(
+            wishlist.byUser._id.toString(),
+            wishlistId
+        )
+
         return wishlistId
     } catch (err) {
         logger.error(`cannot remove wishlist ${wishlistId}`, err)
@@ -95,11 +110,18 @@ async function add(wishlist) {
         }
 
         const collection = await dbService.getCollection('wishlist')
-        await collection.insertOne(wishlistToAdd)
-        
+        const res = await collection.insertOne(wishlistToAdd)
+
+        const wishlistId = res.insertedId.toString()
+
+        await userService.addWishlistToUser(
+            wishlistToAdd.byUser._id.toString(),
+            wishlistId
+        )
         // Return with string ID for client
         return {
             ...wishlistToAdd,
+            _id: wishlistId,
             byUser: {
                 ...wishlistToAdd.byUser,
                 _id: wishlistToAdd.byUser._id.toString()
@@ -117,18 +139,18 @@ async function update(wishlist) {
 
     try {
         const criteria = { _id: ObjectId.createFromHexString(wishlist._id) }
-        
+
         // Get existing wishlist to verify ownership
         const collection = await dbService.getCollection('wishlist')
         const existingWishlist = await collection.findOne(criteria)
-        
+
         if (!existingWishlist) throw 'Wishlist not found'
-        
+
         // Handle both string and ObjectId formats
-        const existingUserId = existingWishlist.byUser._id?.toString 
+        const existingUserId = existingWishlist.byUser._id?.toString
             ? existingWishlist.byUser._id.toString()
             : existingWishlist.byUser._id
-        
+
         if (!isAdmin && existingUserId !== userId) {
             throw 'Not your wishlist'
         }
@@ -148,9 +170,9 @@ async function update(wishlist) {
         }
 
         await collection.updateOne(criteria, { $set: wishlistToSave })
-        
-        return { 
-            ...wishlist, 
+
+        return {
+            ...wishlist,
             updatedAt: wishlistToSave.updatedAt,
             byUser: {
                 ...wishlist.byUser,
@@ -169,18 +191,18 @@ async function addStayToWishlist(wishlistId, stayId) {
 
     try {
         const criteria = { _id: ObjectId.createFromHexString(wishlistId) }
-        
+
         // Get existing wishlist to verify ownership
         const collection = await dbService.getCollection('wishlist')
         const wishlist = await collection.findOne(criteria)
-        
+
         if (!wishlist) throw 'Wishlist not found'
-        
+
         // Handle both string and ObjectId formats
-        const existingUserId = wishlist.byUser._id?.toString 
+        const existingUserId = wishlist.byUser._id?.toString
             ? wishlist.byUser._id.toString()
             : wishlist.byUser._id
-        
+
         if (!isAdmin && existingUserId !== userId) {
             throw 'Not your wishlist'
         }
@@ -192,7 +214,7 @@ async function addStayToWishlist(wishlistId, stayId) {
 
         await collection.updateOne(
             criteria,
-            { 
+            {
                 $push: { stays: stayId },
                 $set: { updatedAt: Date.now() }
             }
@@ -211,25 +233,25 @@ async function removeStayFromWishlist(wishlistId, stayId) {
 
     try {
         const criteria = { _id: ObjectId.createFromHexString(wishlistId) }
-        
+
         // Get existing wishlist to verify ownership
         const collection = await dbService.getCollection('wishlist')
         const wishlist = await collection.findOne(criteria)
-        
+
         if (!wishlist) throw 'Wishlist not found'
-        
+
         // Handle both string and ObjectId formats
-        const existingUserId = wishlist.byUser._id?.toString 
+        const existingUserId = wishlist.byUser._id?.toString
             ? wishlist.byUser._id.toString()
             : wishlist.byUser._id
-        
+
         if (!isAdmin && existingUserId !== userId) {
             throw 'Not your wishlist'
         }
 
         await collection.updateOne(
             criteria,
-            { 
+            {
                 $pull: { stays: stayId },
                 $set: { updatedAt: Date.now() }
             }
